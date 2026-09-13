@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GreenMail Console</title>
+    <style>
+        :root {
+            --accent: #2e7d32;
+            --accent-dark: #1b5e20;
+            --unread: #1565c0;
+            --bg: #f0f2f5;
+            --panel: #ffffff;
+            --border: #e4e7eb;
+            --text: #1a1a1a;
+            --muted: #6b7280;
+            --hover: #f5f7fa;
+            --selected: #e8f2fe;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ---- Top bar ---- */
+        header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 0 20px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            color: #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,.15);
+            flex-shrink: 0;
+        }
+        header .brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; }
+        header .brand .logo { font-size: 20px; }
+        .badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 22px; height: 22px; padding: 0 7px;
+            border-radius: 11px; font-size: 12px; font-weight: 700;
+            background: var(--unread); color: #fff;
+        }
+        .badge.hidden { display: none; }
+        header .spacer { flex: 1; }
+        header .count { font-size: 13px; opacity: .9; }
+        .btn {
+            cursor: pointer; border: none; border-radius: 6px;
+            padding: 7px 14px; font-size: 13px; font-weight: 600;
+            background: rgba(255,255,255,.15); color: #fff; transition: background .15s;
+        }
+        .btn:hover { background: rgba(255,255,255,.28); }
+        .btn.danger:hover { background: #c62828; }
+        .toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+        .toggle input { cursor: pointer; }
+
+        /* ---- Layout ---- */
+        main { flex: 1; display: flex; min-height: 0; }
+        #list {
+            width: 40%; min-width: 320px; max-width: 480px;
+            background: var(--panel); border-right: 1px solid var(--border);
+            overflow-y: auto;
+        }
+        #detail { flex: 1; overflow-y: auto; background: var(--bg); }
+
+        /* ---- List rows ---- */
+        .row {
+            display: block; width: 100%; text-align: left;
+            padding: 12px 16px 12px 20px;
+            border-bottom: 1px solid var(--border);
+            border-left: 3px solid transparent;
+            cursor: pointer; background: none; font: inherit; color: inherit;
+            transition: background .12s;
+        }
+        .row:hover { background: var(--hover); }
+        .row.selected { background: var(--selected); border-left-color: var(--accent); }
+        .row.unread { border-left-color: var(--unread); }
+        .row-top { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--unread); flex-shrink: 0; }
+        .row.read .dot { background: transparent; }
+        .from { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+        .row.unread .from { font-weight: 700; }
+        .time { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+        .subject { font-size: 13.5px; margin: 3px 0 0 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .row.unread .subject { font-weight: 600; }
+        .preview { font-size: 12.5px; color: var(--muted); margin: 2px 0 0 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .del {
+            border: none; background: transparent; cursor: pointer; color: var(--muted);
+            font-size: 14px; line-height: 1; padding: 2px 5px; border-radius: 4px; flex-shrink: 0;
+            visibility: hidden;
+        }
+        .row:hover .del { visibility: visible; }
+        .del:hover { background: #fdecea; color: #c62828; }
+
+        /* ---- Detail ---- */
+        .detail-card {
+            background: var(--panel); margin: 16px; border-radius: 10px;
+            border: 1px solid var(--border); overflow: hidden;
+        }
+        .detail-head { padding: 20px 24px; border-bottom: 1px solid var(--border); }
+        .detail-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+        .detail-subject { margin: 0; font-size: 20px; }
+        .btn-outline {
+            cursor: pointer; border: 1px solid var(--border); background: #fff; color: #c62828;
+            border-radius: 6px; padding: 6px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+        }
+        .btn-outline:hover { background: #fdecea; border-color: #f0b4ae; }
+        .meta-grid { display: grid; grid-template-columns: 76px 1fr; row-gap: 6px; column-gap: 12px; font-size: 13.5px; }
+        .meta-grid .label { color: var(--muted); font-weight: 600; }
+        .meta-grid .value { color: var(--text); word-break: break-word; }
+        .tabs { display: flex; gap: 4px; padding: 12px 24px 0; }
+        .tab {
+            cursor: pointer; border: 1px solid var(--border); border-bottom: none;
+            background: #fafbfc; padding: 7px 16px; font-size: 13px; font-weight: 600;
+            border-radius: 6px 6px 0 0; color: var(--muted);
+        }
+        .tab.active { background: var(--panel); color: var(--accent); }
+        .body-wrap { padding: 0 24px 24px; }
+        .body-panel { border: 1px solid var(--border); border-radius: 0 8px 8px 8px; }
+        iframe { width: 100%; height: 60vh; border: none; border-radius: 0 8px 8px 8px; background: #fff; }
+        pre { white-space: pre-wrap; word-break: break-word; margin: 0; padding: 16px; font-size: 13px; line-height: 1.5; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .headers-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .headers-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .headers-table tr:last-child td { border-bottom: none; }
+        .headers-table .hk { color: var(--muted); font-weight: 600; white-space: nowrap; width: 160px; }
+        .headers-table .hv { color: var(--text); word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+        /* ---- Attachments ---- */
+        .attachments { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .att-title { font-size: 13px; font-weight: 600; color: var(--muted); margin-right: 4px; }
+        .att {
+            display: inline-flex; flex-direction: column; text-decoration: none;
+            border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+            background: #fafbfc; color: var(--text); min-width: 140px; transition: border-color .15s, background .15s;
+        }
+        .att:hover { border-color: var(--accent); background: #f1f8f2; }
+        .att-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+        .att-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+        /* ---- Empty states ---- */
+        .empty { display: flex; flex-direction: column; align-items: center; justify-content: center;
+                 height: 100%; color: var(--muted); gap: 10px; text-align: center; padding: 24px; }
+        .empty .icon { font-size: 44px; opacity: .5; }
+        .empty.small { height: auto; padding: 48px 24px; }
+    </style>
+</head>
+<body>
+<header>
+    <span class="brand"><span class="logo">📬</span> GreenMail Console</span>
+    <span id="unreadBadge" class="badge hidden">0</span>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+    <label class="toggle"><input type="checkbox" id="auto" checked> Auto-refresh</label>
+    <button class="btn danger" onclick="clearAll()">Clear all</button>
+</header>
+<main>
+    <div id="list"></div>
+    <div id="detail"></div>
+</main>
+
+<script>
+    const BASE = '__BASE_PATH__';
+    let messages = [];
+    let selectedId = null;
+    let detailTab = 'html';
+
+    /* ---------- time helpers ---------- */
+    function formatRelative(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        const diff = (Date.now() - d.getTime()) / 1000;
+        if (diff < 5) return 'just now';
+        if (diff < 60) return Math.floor(diff) + 's ago';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        return d.toLocaleDateString();
+    }
+    function formatAbsolute(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return isNaN(d) ? iso : d.toLocaleString();
+    }
+
+    /* ---------- list ---------- */
+    async function loadList() {
+        try {
+            const res = await fetch(BASE + '/api/messages');
+            messages = await res.json();
+        } catch (e) { return; }
+        renderList();
+    }
+
+    function renderList() {
+        const unread = messages.filter(m => !m.read).length;
+        const badge = document.getElementById('unreadBadge');
+        badge.textContent = unread;
+        badge.classList.toggle('hidden', unread === 0);
+        document.getElementById('count').textContent =
+            messages.length + (messages.length === 1 ? ' message' : ' messages');
+
+        const list = document.getElementById('list');
+        if (messages.length === 0) {
+            list.innerHTML = '<div class="empty"><div class="icon">📭</div><div>No messages yet</div>'
+                + '<div style="font-size:12px">Sent emails will appear here.</div></div>';
+            return;
+        }
+        // newest first
+        const ordered = messages.slice().reverse();
+        list.innerHTML = ordered.map(m => {
+            const cls = 'row ' + (m.read ? 'read' : 'unread') + (m.id === selectedId ? ' selected' : '');
+            return '<div class="' + cls + '" onclick="loadDetail(\'' + m.id + '\')">'
+                + '<div class="row-top">'
+                +   '<span class="dot"></span>'
+                +   '<span class="from">' + escapeHtml(m.from) + '</span>'
+                +   '<span class="time" title="' + escapeHtml(formatAbsolute(m.receivedAt)) + '">'
+                +       escapeHtml(formatRelative(m.receivedAt)) + '</span>'
+                +   '<button class="del" title="Delete" onclick="deleteMessage(\'' + m.id + '\', event)">🗑</button>'
+                + '</div>'
+                + '<div class="subject">' + escapeHtml(m.subject || '(no subject)') + '</div>'
+                + '<div class="preview">' + escapeHtml(m.preview || '') + '</div>'
+                + '</div>';
+        }).join('');
+    }
+
+    /* ---------- detail ---------- */
+    async function loadDetail(id) {
+        selectedId = id;
+        // optimistic read state so the UI updates instantly
+        const local = messages.find(m => m.id === id);
+        if (local) local.read = true;
+        renderList();
+
+        let m;
+        try {
+            const res = await fetch(BASE + '/api/messages/' + encodeURIComponent(id));
+            if (!res.ok) return;
+            m = await res.json();
+        } catch (e) { return; }
+
+        const attachments = m.attachments || [];
+        const partUrl = a => BASE + '/api/messages/' + encodeURIComponent(m.id) + '/parts/' + encodeURIComponent(a.id);
+
+        // Rewrite cid: references to inline-part URLs so images render inside the iframe
+        let htmlBody = m.html || '';
+        attachments.forEach(a => {
+            if (a.contentId) {
+                htmlBody = htmlBody.split('cid:' + a.contentId).join(partUrl(a));
+            }
+        });
+
+        const hasHtml = htmlBody.trim().length > 0;
+        const hasText = m.text && m.text.trim().length > 0;
+
+        // Available views: HTML/Text depend on the body; Headers/Source always present
+        const panels = [];
+        if (hasHtml) panels.push(['html', 'HTML']);
+        if (hasText) panels.push(['text', 'Plain text']);
+        panels.push(['headers', 'Headers']);
+        panels.push(['source', 'Source']);
+        if (!panels.some(([k]) => k === detailTab)) detailTab = panels[0][0];
+
+        let headersRows = '';
+        [['From', m.from], ['To', m.to], ['Cc', m.cc], ['Subject', m.subject]].forEach(([k, v]) => {
+            if (v) headersRows += '<div class="label">' + k + '</div><div class="value">' + escapeHtml(v) + '</div>';
+        });
+        headersRows += '<div class="label">Received</div><div class="value">'
+            + escapeHtml(formatAbsolute(m.receivedAt)) + '</div>';
+        headersRows += '<div class="label">Size</div><div class="value">'
+            + escapeHtml(formatSize(m.size)) + '</div>';
+
+        // Attachments (inline images are shown in the body, so only list real downloads)
+        const downloads = attachments.filter(a => !a.inline);
+        let attachHtml = '';
+        if (downloads.length) {
+            attachHtml = '<div class="attachments">'
+                + '<span class="att-title">📎 ' + downloads.length
+                + ' attachment' + (downloads.length > 1 ? 's' : '') + '</span>'
+                + downloads.map(a =>
+                    '<a class="att" href="' + partUrl(a) + '" download="' + escapeHtml(a.filename) + '">'
+                    + '<span class="att-name">' + escapeHtml(a.filename) + '</span>'
+                    + '<span class="att-meta">' + escapeHtml((a.contentType || '') + ' · ' + formatSize(a.size)) + '</span>'
+                    + '</a>').join('')
+                + '</div>';
+        }
+
+        let tabs = panels.map(([k, label]) => tabBtn(k, label)).join('');
+
+        let body;
+        if (detailTab === 'html' && hasHtml) {
+            body = '<iframe sandbox srcdoc="' + escapeHtml(htmlBody) + '"></iframe>';
+        } else if (detailTab === 'text' && hasText) {
+            body = '<pre>' + escapeHtml(m.text) + '</pre>';
+        } else if (detailTab === 'headers') {
+            body = renderHeaders(m.headers);
+        } else if (detailTab === 'source') {
+            body = '<pre>' + escapeHtml(m.source || '') + '</pre>';
+        } else {
+            body = '<div class="empty small">Empty body.</div>';
+        }
+
+        document.getElementById('detail').innerHTML =
+            '<div class="detail-card">'
+            + '<div class="detail-head">'
+            +   '<div class="detail-toolbar">'
+            +     '<h2 class="detail-subject">' + escapeHtml(m.subject || '(no subject)') + '</h2>'
+            +     '<button class="btn-outline" onclick="deleteMessage(\'' + m.id + '\')">🗑 Delete</button>'
+            +   '</div>'
+            +   '<div class="meta-grid">' + headersRows + '</div>'
+            + '</div>'
+            + attachHtml
+            + (tabs ? '<div class="tabs">' + tabs + '</div>' : '')
+            + '<div class="body-wrap"><div class="body-panel">' + body + '</div></div>'
+            + '</div>';
+    }
+
+    function formatSize(bytes) {
+        if (bytes == null) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function renderHeaders(headers) {
+        const entries = Object.entries(headers || {});
+        if (!entries.length) return '<div class="empty small">No headers.</div>';
+        return '<table class="headers-table"><tbody>'
+            + entries.map(([k, v]) =>
+                '<tr><td class="hk">' + escapeHtml(k) + '</td><td class="hv">' + escapeHtml(v) + '</td></tr>').join('')
+            + '</tbody></table>';
+    }
+
+    function tabBtn(tab, label) {
+        const active = detailTab === tab ? ' active' : '';
+        return '<button class="tab' + active + '" onclick="switchTab(\'' + tab + '\')">' + label + '</button>';
+    }
+    function switchTab(tab) { detailTab = tab; if (selectedId) loadDetail(selectedId); }
+
+    async function deleteMessage(id, ev) {
+        if (ev) ev.stopPropagation(); // don't open the row when clicking its trash icon
+        try { await fetch(BASE + '/api/messages/' + encodeURIComponent(id), { method: 'DELETE' }); } catch (e) {}
+        messages = messages.filter(m => m.id !== id);
+        if (selectedId === id) { selectedId = null; renderEmptyDetail(); }
+        renderList();
+        loadList();
+    }
+
+    async function clearAll() {
+        try { await fetch(BASE + '/api/messages', { method: 'DELETE' }); } catch (e) {}
+        selectedId = null;
+        renderEmptyDetail();
+        loadList();
+    }
+
+    function renderEmptyDetail() {
+        document.getElementById('detail').innerHTML =
+            '<div class="empty"><div class="icon">✉️</div><div>Select a message to read it</div></div>';
+    }
+
+    /* ---------- utils ---------- */
+    function escapeHtml(s) {
+        return (s == null ? '' : String(s)).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    /* ---------- boot ---------- */
+    renderEmptyDetail();
+    loadList();
+    setInterval(() => { if (document.getElementById('auto').checked) loadList(); }, 3000);
+</script>
+</body>
+</html>
