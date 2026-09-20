@@ -1,5 +1,6 @@
 package io.github.pmoustopoulos.greenmailconsole;
 
+import com.icegreen.greenmail.util.GreenMail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.server.context.WebServerInitializedEvent;
@@ -17,10 +18,13 @@ public class MailConsoleStartupLogger implements ApplicationListener<WebServerIn
 
     private static final Logger log = LoggerFactory.getLogger(MailConsoleStartupLogger.class);
 
+    private final GreenMail greenMail;
     private final GreenMailConsoleProperties properties;
     private final Environment environment;
 
-    public MailConsoleStartupLogger(GreenMailConsoleProperties properties, Environment environment) {
+    public MailConsoleStartupLogger(
+            GreenMail greenMail, GreenMailConsoleProperties properties, Environment environment) {
+        this.greenMail = greenMail;
         this.properties = properties;
         this.environment = environment;
     }
@@ -35,10 +39,13 @@ public class MailConsoleStartupLogger implements ApplicationListener<WebServerIn
                 ? "file: " + Paths.get(properties.getDirectory()).toAbsolutePath().normalize()
                 : "in-memory (cleared on restart)";
 
+        int smtpPort = greenMail.getSmtp().getPort();
+
         log.info("");
         log.info("----------------------------------------------------------------");
         log.info("  GreenMail mail console:   {}", consoleUrl);
-        log.info("  SMTP listening:            localhost:{}", properties.getSmtpPort());
+        log.info("  SMTP listening:            localhost:{}", smtpPort);
+        log.info("  Point your app at it:      spring.mail.host=localhost  spring.mail.port={}", smtpPort);
         log.info("  Storage:                   {}", storage);
         log.info("----------------------------------------------------------------");
         log.info("");

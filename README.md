@@ -24,7 +24,7 @@ process, nothing sensitive leaving the machine. That's what this starter is.
 - 👥 Shows **From / To / Cc** and the total **email size**
 - 🧹 **Delete** a single message or **clear all**
 - 🔁 **De-duplicates** per-recipient copies — one row per email
-- 🔌 **Zero-config** Spring Boot auto-configuration — off by default, enabled via one property
+- 🔌 **Auto-configured** Spring Boot starter — off by default; enable it with one property and point `spring.mail.*` at it (standard Boot mail config, so swapping to a real server is trivial)
 - 💾 **Two storage modes** — in-memory (default, cleared on restart) or `file` (mail mirrored to `.eml` files that survive restarts)
 - 🚫 **No Docker**, no external process — everything runs embedded in the JVM
 
@@ -52,13 +52,6 @@ languages. Use this starter when you want a fast, zero-infrastructure SMTP endpo
 your own app — no daemon, no image pull, no separate process — that you can *see into* from a
 browser.
 
-## Do I need to run anything separately?
-
-**No.** The GreenMail SMTP server and the web console run **embedded inside your
-application's JVM** — they start automatically when your app boots with the console
-enabled. There is no separate process, service, or Docker container to launch. Just start
-your app as usual and open the console URL in a browser.
-
 ## Installation (one-time, per machine)
 
 This starter is **not published to a Maven repository (e.g. Maven Central) yet** — so build and
@@ -66,13 +59,13 @@ install it into your local Maven repository (`~/.m2`) once. After that you can a
 dependency to *any* project on your machine:
 
 ```bash
-git clone https://github.com/pmoustopoulos/greenmail-console-spring-boot-starter.git
-cd greenmail-console-spring-boot-starter
+git clone https://github.com/pmoustopoulos/greenmail-console-starter.git
+cd greenmail-console-starter
 mvn clean install              # installs io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.1.1 into ~/.m2
 ```
 
 Re-run `mvn clean install` whenever you change the starter's code so consumers pick up the new jar.
-(This project targets Java 25.)
+(This project targets Java 21.)
 
 ## Usage
 
@@ -92,17 +85,9 @@ Re-run `mvn clean install` whenever you change the starter's code so consumers p
 </dependency>
 ```
 
-**2.** Enable it in a development configuration profile, and point your mail sender at the
-embedded SMTP server — using either `application.properties`:
-
-```properties
-greenmail.console.enabled=true
-
-spring.mail.host=localhost
-spring.mail.port=3025
-```
-
-...or `application.yml`:
+**2.** Enable the console and point your app's mail at it. The starter does **not** provide a
+`JavaMailSender` — you use Spring Boot's standard `spring.mail.*` config (like you set H2's JDBC URL
+yourself), pointing it at the embedded server:
 
 ```yaml
 greenmail:
@@ -112,8 +97,57 @@ greenmail:
 spring:
   mail:
     host: localhost
-    port: 3025
+    port: 3025          # must match greenmail.console.smtp-port (default 3025)
 ```
+
+**Changing the port?** You are never blocked: set `greenmail.console.smtp-port` to whatever you
+like and match `spring.mail.port` to it. If the preferred port happens to be busy (another process,
+or another application context in the same JVM during a test run), the server **falls back to a free
+port so startup never fails** and logs a `WARN` telling you the port it actually used — reconcile
+`spring.mail.port` with it if you need to capture that mail. Use `smtp-port: 0` to always let the OS
+pick a free port.
+
+The starter is gated purely on `greenmail.console.enabled`, not on any particular profile, so these
+properties work from whichever config source the app loads. For safety, **enable it only in a
+dev-only profile** so it can never be on in production — see **Enable it in a dev profile only**
+below and the **Development only** warning near the end.
+
+### Enable it in a dev profile only (and swapping to a real server)
+
+Enable the console **only in a dev profile**, never in the base `application.yml` — the base file
+applies to every environment, so `enabled: true` (or a `localhost` mail host) leaking into a
+prod-active file gives you an open console path **and** outgoing mail diverted to a dead `localhost`.
+Default to the safe value in the base file and opt in for dev:
+
+```yaml
+# application.yml (base) — safe for every environment
+greenmail:
+  console:
+    enabled: false                 # dev turns this on; prod stays off
+spring:
+  mail:
+    host: ${MAIL_HOST:localhost}   # real server via env in prod
+    port: ${MAIL_PORT:587}
+```
+
+```yaml
+# application-dev.yml — opt in for local dev
+greenmail:
+  console:
+    enabled: true
+    storage: file
+    directory: ./mail-data
+spring:
+  mail:
+    host: localhost
+    port: 3025                      # = greenmail.console.smtp-port
+```
+
+Because mail is wired the normal Spring Boot way, switching to a real server is just ordinary
+`spring.mail.*` config — nothing starter-specific to undo. When `greenmail.console.enabled` is
+`false` the starter contributes no beans at all, so `spring.mail.*` behaves exactly as if the
+dependency were not on the classpath. Keeping `spring.mail.*` in the base file also guarantees a
+`JavaMailSender` always exists for your app and tests.
 
 **3.** Start your application. The console URL (with the correct port and context path) is
 logged at startup, e.g.:
@@ -122,6 +156,7 @@ logged at startup, e.g.:
 ----------------------------------------------------------------
   GreenMail mail console:   http://localhost:8080/mail-console
   SMTP listening:            localhost:3025
+  Point your app at it:      spring.mail.host=localhost  spring.mail.port=3025
   Storage:                   in-memory (cleared on restart)
 ----------------------------------------------------------------
 ```

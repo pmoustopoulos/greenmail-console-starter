@@ -96,6 +96,11 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Spring's mail support, TEST scope only. The starter itself never provides a JavaMailSender:
+             consumers point their own spring.mail.* at the embedded SMTP server (like H2's JDBC URL), so
+             swapping to a real mail server is just standard Spring Boot mail config with nothing to undo.
+             This dependency lets the starter's own integration test act as a consumer — sending mail into
+             the embedded server and asserting the console captures it. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>

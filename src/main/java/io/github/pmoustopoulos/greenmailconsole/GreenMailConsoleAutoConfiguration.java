@@ -2,6 +2,8 @@ package io.github.pmoustopoulos.greenmailconsole;
 
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -12,6 +14,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.file.Paths;
 
 @AutoConfiguration
@@ -20,12 +24,97 @@ import java.nio.file.Paths;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class GreenMailConsoleAutoConfiguration {
 
-    @Bean(initMethod = "start", destroyMethod = "stop")
+    private static final Logger log = LoggerFactory.getLogger(GreenMailConsoleAutoConfiguration.class);
+
+    /**
+     * Starts the embedded GreenMail SMTP server, preferring the configured port
+     * ({@code greenmail.console.smtp-port}, default 3025; use {@code 0} to let the OS pick a free one).
+     *
+     * <p>The starter deliberately does <em>not</em> register a {@code JavaMailSender}. Your
+     * application keeps using Spring Boot's standard mail configuration: point
+     * {@code spring.mail.host}/{@code spring.mail.port} at this server (host {@code localhost}, port =
+     * the port logged below) to have the console capture outgoing mail. Swapping to a real mail server
+     * is then just a normal change to {@code spring.mail.*} — there is no {@code @Primary} sender to
+     * fight and nothing starter-specific to undo.
+     *
+     * <p>To stay robust ("plug and play, nothing breaks"), if the preferred port is already in use —
+     * by another process, or by another application context in the same JVM during a test run — the
+     * server falls back to an OS-assigned free port instead of failing startup. When that happens a
+     * {@code WARN} is logged so that, if you rely on capturing mail in dev, you can reconcile your
+     * {@code spring.mail.port} (or free the preferred port). In the common case the preferred port is
+     * free, so it stays stable and matches your configuration.
+     */
+    @Bean(destroyMethod = "stop")
     @ConditionalOnMissingBean
     public GreenMail greenMailServer(GreenMailConsoleProperties properties) {
-        ServerSetup setup = new ServerSetup(
-                properties.getSmtpPort(), null, ServerSetup.PROTOCOL_SMTP);
-        return new GreenMail(setup);
+        int preferred = properties.getSmtpPort();
+
+        // Probe first so we never hand GreenMail an occupied port (which would log a noisy
+        // BindException from its server thread); fall back to an OS-assigned free port if busy.
+        int port = isPortFree(preferred) ? preferred : findFreePort();
+
+        GreenMail greenMail = tryStart(port);
+        if (greenMail == null) {
+            // Rare race: the port was taken between the probe and the bind. Try one more free port.
+            port = findFreePort();
+            greenMail = tryStart(port);
+            if (greenMail == null) {
+                throw new IllegalStateException(
+                        "GreenMail console: could not start the embedded SMTP server on a free port.");
+            }
+        }
+
+        int actual = greenMail.getSmtp().getPort();
+        if (preferred != 0 && actual != preferred) {
+            log.warn("GreenMail console: SMTP port {} was busy (another process or application context "
+                    + "is using it); started on free port {} instead. To capture outgoing mail, set "
+                    + "'spring.mail.port={}' (or free port {} and restart).", preferred, actual, actual, preferred);
+        } else {
+            log.info("GreenMail console: embedded SMTP server started on port {}. "
+                    + "Point spring.mail.host=localhost and spring.mail.port={} to capture outgoing mail.",
+                    actual, actual);
+        }
+        return greenMail;
+    }
+
+    /** Attempts to start GreenMail on the given SMTP port; returns null if it cannot be bound. */
+    private GreenMail tryStart(int port) {
+        ServerSetup setup = new ServerSetup(port, null, ServerSetup.PROTOCOL_SMTP);
+        GreenMail greenMail = new GreenMail(setup);
+        try {
+            greenMail.start();
+            return greenMail;
+        } catch (Exception ex) {
+            try {
+                greenMail.stop();
+            } catch (Exception ignored) {
+                // best effort: the server never fully started
+            }
+            return null;
+        }
+    }
+
+    /** True if a TCP server socket can currently be bound on the given port (127.0.0.1). */
+    private boolean isPortFree(int port) {
+        if (port == 0) {
+            return true; // 0 means "let the OS pick", which is always available
+        }
+        try (ServerSocket socket = new ServerSocket()) {
+            socket.setReuseAddress(false);
+            socket.bind(new InetSocketAddress("127.0.0.1", port), 1);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    /** Asks the OS for a currently-free TCP port. */
+    private int findFreePort() {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        } catch (IOException ex) {
+            throw new IllegalStateException("GreenMail console: could not find a free SMTP port", ex);
+        }
     }
 
     /** On-disk mirror of captured mail; registered only when storage=file. */
@@ -68,7 +157,7 @@ public class GreenMailConsoleAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public MailConsoleStartupLogger mailConsoleStartupLogger(
-            GreenMailConsoleProperties properties, Environment environment) {
-        return new MailConsoleStartupLogger(properties, environment);
+            GreenMail greenMailServer, GreenMailConsoleProperties properties, Environment environment) {
+        return new MailConsoleStartupLogger(greenMailServer, properties, environment);
     }
 }
