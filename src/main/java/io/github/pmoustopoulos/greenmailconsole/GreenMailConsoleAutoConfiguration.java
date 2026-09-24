@@ -10,7 +10,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.core.env.Environment;
 
 import java.io.IOException;
@@ -149,9 +152,32 @@ public class GreenMailConsoleAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MailConsoleController mailConsoleController(
+    public MailConsoleHandler mailConsoleHandler(
             MailConsoleService mailConsoleService, GreenMailConsoleProperties properties) {
-        return new MailConsoleController(mailConsoleService, properties);
+        return new MailConsoleHandler(mailConsoleService, properties.isAllowRemote());
+    }
+
+    /**
+     * Default mode: serve the console from a servlet filter on the app's own port, registered ahead
+     * of Spring Security ({@code -100}) and every host filter, so the host's security, interceptors,
+     * advice, converters and filters never touch console requests.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnProperty(prefix = "greenmail.console", name = "mode", havingValue = "filter", matchIfMissing = true)
+    static class FilterModeConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(name = "mailConsoleFilterRegistration")
+        FilterRegistrationBean<MailConsoleFilter> mailConsoleFilterRegistration(
+                MailConsoleHandler mailConsoleHandler, GreenMailConsoleProperties properties) {
+            String path = MailConsoleHandler.normalizePath(properties.getPath());
+            FilterRegistrationBean<MailConsoleFilter> registration =
+                    new FilterRegistrationBean<>(new MailConsoleFilter(mailConsoleHandler, path));
+            registration.setName("greenMailConsoleFilter");
+            registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+            registration.addUrlPatterns(path, path + "/*");
+            return registration;
+        }
     }
 
     @Bean

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
 import java.nio.file.Path;
 
@@ -36,7 +37,8 @@ class GreenMailConsoleAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(GreenMail.class);
                     assertThat(context).hasSingleBean(MailConsoleService.class);
-                    assertThat(context).hasSingleBean(MailConsoleController.class);
+                    assertThat(context).hasSingleBean(MailConsoleHandler.class);
+                    assertThat(context).hasSingleBean(FilterRegistrationBean.class);
                 });
     }
 
@@ -71,7 +73,8 @@ class GreenMailConsoleAutoConfigurationTest {
         runner.run(context -> {
             assertThat(context).doesNotHaveBean(GreenMail.class);
             assertThat(context).doesNotHaveBean(MailConsoleService.class);
-            assertThat(context).doesNotHaveBean(MailConsoleController.class);
+            assertThat(context).doesNotHaveBean(MailConsoleHandler.class);
+            assertThat(context).doesNotHaveBean(FilterRegistrationBean.class);
         });
     }
 }

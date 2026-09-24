@@ -15,6 +15,17 @@ public class GreenMailConsoleProperties {
         FILE
     }
 
+    /** How the console UI and API are served. */
+    public enum Mode {
+        /**
+         * A servlet filter on the host app's own port and URL, running ahead of the host's security,
+         * filters and Spring MVC so none of them can interfere (default).
+         */
+        FILTER,
+        /** A small library-owned HTTP server on its own port ({@link #port}), fully isolated from the host. */
+        STANDALONE
+    }
+
     /** Whether the in-memory mail server and console are active. Off by default. */
     private boolean enabled = false;
 
@@ -41,6 +52,19 @@ public class GreenMailConsoleProperties {
      * {@code file}. Set to {@code 0s} to disable the periodic flush. Ignored for {@code memory} storage.
      */
     private Duration persistInterval = Duration.ofSeconds(2);
+
+    /**
+     * How the console is served: {@code filter} (default; same port and URL as the app, ahead of the
+     * app's security and MVC pipeline) or {@code standalone} (separate embedded HTTP server on
+     * {@code greenmail.console.port}).
+     */
+    private Mode mode = Mode.FILTER;
+
+    /**
+     * Whether clients other than loopback (localhost) may reach the console. Off by default, so
+     * requests from any other address get 403.
+     */
+    private boolean allowRemote = false;
 
     public boolean isEnabled() {
         return enabled;
@@ -88,5 +112,21 @@ public class GreenMailConsoleProperties {
 
     public void setPersistInterval(Duration persistInterval) {
         this.persistInterval = persistInterval;
+    }
+
+    public Mode getMode() {
+        return mode;
+    }
+
+    public void setMode(Mode mode) {
+        this.mode = mode;
+    }
+
+    public boolean isAllowRemote() {
+        return allowRemote;
+    }
+
+    public void setAllowRemote(boolean allowRemote) {
+        this.allowRemote = allowRemote;
     }
 }
