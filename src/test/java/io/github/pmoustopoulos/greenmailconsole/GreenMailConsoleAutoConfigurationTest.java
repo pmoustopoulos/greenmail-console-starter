@@ -7,7 +7,10 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -75,6 +78,37 @@ class GreenMailConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(MailConsoleService.class);
             assertThat(context).doesNotHaveBean(MailConsoleHandler.class);
             assertThat(context).doesNotHaveBean(FilterRegistrationBean.class);
+            assertThat(context).doesNotHaveBean(MailConsoleHttpServer.class);
         });
+    }
+
+    @Test
+    void standaloneModeFallsBackToFreePortAndStopsWithContext() throws Exception {
+        try (ServerSocket busy = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            int busyPort = busy.getLocalPort();
+            AtomicReference<MailConsoleHttpServer> serverRef = new AtomicReference<>();
+            runner.withPropertyValues(
+                            "greenmail.console.enabled=true",
+                            "greenmail.console.smtp-port=0",
+                            "greenmail.console.mode=standalone",
+                            "greenmail.console.port=" + busyPort)
+                    .run(context -> {
+                        assertThat(context).hasSingleBean(MailConsoleHttpServer.class);
+                        assertThat(context).doesNotHaveBean(FilterRegistrationBean.class);
+                        MailConsoleHttpServer server = context.getBean(MailConsoleHttpServer.class);
+                        assertThat(server.isRunning()).isTrue();
+                        assertThat(server.getPort()).isPositive().isNotEqualTo(busyPort);
+                        serverRef.set(server);
+                    });
+            MailConsoleHttpServer server = serverRef.get();
+            assertThat(server.isRunning()).isFalse();
+            assertThat(server.getPort()).isEqualTo(-1);
+        }
+    }
+
+    @Test
+    void filterModeRegistersNoStandaloneServer() {
+        runner.withPropertyValues("greenmail.console.enabled=true", "greenmail.console.smtp-port=0")
+                .run(context -> assertThat(context).doesNotHaveBean(MailConsoleHttpServer.class));
     }
 }

@@ -17,8 +17,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.env.Environment;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
+import java.net.InetAddress;
 import java.nio.file.Paths;
 
 @AutoConfiguration
@@ -54,12 +53,12 @@ public class GreenMailConsoleAutoConfiguration {
 
         // Probe first so we never hand GreenMail an occupied port (which would log a noisy
         // BindException from its server thread); fall back to an OS-assigned free port if busy.
-        int port = isPortFree(preferred) ? preferred : findFreePort();
+        int port = Ports.isFree(InetAddress.getLoopbackAddress(), preferred) ? preferred : Ports.findFree();
 
         GreenMail greenMail = tryStart(port);
         if (greenMail == null) {
             // Rare race: the port was taken between the probe and the bind. Try one more free port.
-            port = findFreePort();
+            port = Ports.findFree();
             greenMail = tryStart(port);
             if (greenMail == null) {
                 throw new IllegalStateException(
@@ -94,29 +93,6 @@ public class GreenMailConsoleAutoConfiguration {
                 // best effort: the server never fully started
             }
             return null;
-        }
-    }
-
-    /** True if a TCP server socket can currently be bound on the given port (127.0.0.1). */
-    private boolean isPortFree(int port) {
-        if (port == 0) {
-            return true; // 0 means "let the OS pick", which is always available
-        }
-        try (ServerSocket socket = new ServerSocket()) {
-            socket.setReuseAddress(false);
-            socket.bind(new InetSocketAddress("127.0.0.1", port), 1);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
-    /** Asks the OS for a currently-free TCP port. */
-    private int findFreePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        } catch (IOException ex) {
-            throw new IllegalStateException("GreenMail console: could not find a free SMTP port", ex);
         }
     }
 
@@ -180,10 +156,29 @@ public class GreenMailConsoleAutoConfiguration {
         }
     }
 
+    /**
+     * Opt-in mode: serve the console from a small library-owned HTTP server on its own port. Nothing
+     * is registered in the host's servlet context.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnProperty(prefix = "greenmail.console", name = "mode", havingValue = "standalone")
+    static class StandaloneModeConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        MailConsoleHttpServer mailConsoleHttpServer(
+                MailConsoleHandler mailConsoleHandler, GreenMailConsoleProperties properties) {
+            return new MailConsoleHttpServer(mailConsoleHandler, properties.getPath(),
+                    properties.getBindAddress(), properties.getPort());
+        }
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public MailConsoleStartupLogger mailConsoleStartupLogger(
-            GreenMail greenMailServer, GreenMailConsoleProperties properties, Environment environment) {
-        return new MailConsoleStartupLogger(greenMailServer, properties, environment);
+            GreenMail greenMailServer, GreenMailConsoleProperties properties, Environment environment,
+            ObjectProvider<MailConsoleHttpServer> standaloneServer) {
+        return new MailConsoleStartupLogger(
+                greenMailServer, properties, environment, standaloneServer.getIfAvailable());
     }
 }

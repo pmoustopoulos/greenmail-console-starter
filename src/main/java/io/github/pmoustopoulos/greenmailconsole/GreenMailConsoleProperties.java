@@ -66,6 +66,15 @@ public class GreenMailConsoleProperties {
      */
     private boolean allowRemote = false;
 
+    /**
+     * Port of the standalone console server when {@code mode=standalone}. If busy, a free port is
+     * used instead and logged. Ignored in {@code filter} mode.
+     */
+    private int port = 8025;
+
+    /** Address the standalone console server binds to when {@code mode=standalone}. Ignored in {@code filter} mode. */
+    private String bindAddress = "127.0.0.1";
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -128,5 +137,21 @@ public class GreenMailConsoleProperties {
 
     public void setAllowRemote(boolean allowRemote) {
         this.allowRemote = allowRemote;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public String getBindAddress() {
+        return bindAddress;
+    }
+
+    public void setBindAddress(String bindAddress) {
+        this.bindAddress = bindAddress;
     }
 }
