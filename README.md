@@ -24,8 +24,11 @@ process, nothing sensitive leaving the machine. That's what this starter is.
 - 👥 Shows **From / To / Cc** and the total **email size**
 - 🧹 **Delete** a single message or **clear all**
 - 🔁 **De-duplicates** per-recipient copies — one row per email
+- 🛡️ **Zero-config: works regardless of your security, interceptors, advice, or filters** — the console is served ahead of your app's Spring Security, `HandlerInterceptor`s, `@ControllerAdvice`, JSON mapper and servlet filters, and never touches or weakens them
 - 🔌 **Auto-configured** Spring Boot starter — off by default; enable it with one property and point `spring.mail.*` at it (standard Boot mail config, so swapping to a real server is trivial)
 - 💾 **Two storage modes** — in-memory (default, cleared on restart) or `file` (mail mirrored to `.eml` files that survive restarts)
+- ♻️ **Starts and stops with your app** — the SMTP server (and the optional standalone console server) are tied to the Spring context lifecycle; nothing to start or stop by hand
+- 🔒 **Safe by default** — localhost-only access, and startup fails if it is enabled under a `prod`/`production` profile
 - 🚫 **No Docker**, no external process — everything runs embedded in the JVM
 
 ## Screenshots
@@ -61,7 +64,7 @@ dependency to *any* project on your machine:
 ```bash
 git clone https://github.com/pmoustopoulos/greenmail-console-starter.git
 cd greenmail-console-starter
-mvn clean install              # installs io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.1.1 into ~/.m2
+mvn clean install              # installs io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.2.0 into ~/.m2
 ```
 
 Re-run `mvn clean install` whenever you change the starter's code so consumers pick up the new jar.
@@ -70,13 +73,15 @@ Re-run `mvn clean install` whenever you change the starter's code so consumers p
 ## Usage
 
 **1.** Add this starter **and** Spring Boot's mail starter (the latter provides the
-`JavaMailSender` your app uses to send mail):
+`JavaMailSender` your app uses to send mail). See
+[Keep it out of production builds](#keep-it-out-of-production-builds) for how to make sure the
+starter never ships:
 
 ```xml
 <dependency>
     <groupId>io.github.pmoustopoulos</groupId>
     <artifactId>greenmail-console-spring-boot-starter</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
 </dependency>
 
 <dependency>
@@ -149,12 +154,18 @@ Because mail is wired the normal Spring Boot way, switching to a real server is 
 dependency were not on the classpath. Keeping `spring.mail.*` in the base file also guarantees a
 `JavaMailSender` always exists for your app and tests.
 
-**3.** Start your application. The console URL (with the correct port and context path) is
-logged at startup, e.g.:
+**3.** Start your application. That's it — no code changes, no security rules, no manual
+start/stop: the SMTP server and console start with your application and stop when it shuts down.
+The console URL (with the correct port and context path) is logged at startup as a `WARN` banner,
+e.g.:
 
 ```
 ----------------------------------------------------------------
-  GreenMail mail console:   http://localhost:8080/mail-console
+  GreenMail mail console -- DEV/TEST ONLY, never enable in production
+  Console URL:               http://localhost:8080/mail-console
+  Mode:                      filter (app port, ahead of the app's security/MVC)
+  Bind address:              app server (all interfaces)
+  Access:                    localhost only
   SMTP listening:            localhost:3025
   Point your app at it:      spring.mail.host=localhost  spring.mail.port=3025
   Storage:                   in-memory (cleared on restart)
@@ -163,6 +174,49 @@ logged at startup, e.g.:
 
 Open that URL in a browser to view captured mail. The base path is
 `http://<host>:<app-port><context-path>/mail-console`.
+
+## How it stays out of your app's way
+
+The console does **not** go through your app's `DispatcherServlet`. That matters because anything
+your app registers in Spring MVC or the servlet filter chain would otherwise also apply to the
+console — e.g. a global `HandlerInterceptor` that requires a `Referer` header, a
+`@RestControllerAdvice`/`ResponseBodyAdvice` that wraps responses, a customised `ObjectMapper`/
+`JsonMapper`, a JWT filter declared as a `@Component`, CORS rules, or Spring Security itself.
+Instead, the console is served in one of two modes:
+
+### `filter` mode (default) — same port, same URL
+
+A plain servlet filter registered at the **highest precedence** for `{path}` and `{path}/*`. It runs
+before Spring Security (order `-100`) and every other filter, answers console requests itself and
+never passes them down the chain. Your security, interceptors, advice, converters and filters
+never see console requests — and the starter no longer needs to add any security rule to your app.
+It honours `server.servlet.context-path` and uses its own private JSON mapper.
+
+### `standalone` mode (opt-in) — separate port, fully isolated
+
+```yaml
+greenmail:
+  console:
+    enabled: true
+    mode: standalone
+    port: 8025               # falls back to a free port (logged) if busy
+    bind-address: 127.0.0.1
+```
+
+A tiny HTTP server owned by the starter (the JDK's built-in `HttpServer`, no extra dependency)
+serves the console at `http://localhost:8025/mail-console`. Nothing at all is registered in your
+app's servlet container. It starts with the application context and stops when it closes.
+
+Use `standalone` when something *outside* Spring's filter chain still gets in the way on your app's
+port — e.g. a servlet-container valve, a reverse proxy/API gateway in front of your app — or you
+simply want the console on a separate port from your API.
+
+### Access control
+
+The console has no login of its own; it is protected by being **dev-only** and **local-only**.
+By default (`allow-remote: false`) any request whose remote address is not loopback gets `403`, in
+both modes. Set `greenmail.console.allow-remote=true` only if you really need to reach it from
+another machine (e.g. a shared dev VM) and understand that captured mail becomes visible to it.
 
 ## Configuration properties
 
@@ -174,6 +228,11 @@ Open that URL in a browser to view captured mail. The base path is
 | `greenmail.console.storage`   | `memory`          | Where captured mail is kept: `memory` (in-heap, cleared on restart) or `file` (mirrored to `.eml` files on disk that persist across restarts, like H2's file mode). |
 | `greenmail.console.directory` | `mail-data`       | Directory used when `storage=file`. Created if missing; messages are written here as `.eml` files and reloaded on startup. Ignored for `memory`. |
 | `greenmail.console.persist-interval` | `2s`       | How often newly received mail is flushed to disk when `storage=file`. Set to `0s` to disable the periodic flush. Ignored for `memory`. |
+| `greenmail.console.mode`      | `filter`          | How the console is served: `filter` (app's own port and URL, ahead of the app's security/MVC/filters) or `standalone` (separate embedded HTTP server). |
+| `greenmail.console.port`      | `8025`            | Port of the standalone console server (`mode=standalone` only). Falls back to a free port, logged, if busy. |
+| `greenmail.console.bind-address` | `127.0.0.1`    | Address the standalone console server binds to (`mode=standalone` only). |
+| `greenmail.console.allow-remote` | `false`        | Allow non-loopback clients. When `false`, requests from any address other than localhost get `403`. |
+| `greenmail.console.forbidden-profiles` | `prod,production` | If the console is enabled while any of these profiles is active, startup fails. |
 
 ### Storage: in-memory vs. file
 
@@ -196,26 +255,59 @@ captured mail (and its original arrival time) survives a restart. Deleting a mes
 
 ## ⚠️ Development only
 
-**Never enable this starter in production.** Only turn it on under a dedicated local/dev profile
-(e.g. `spring.profiles.active=dev` gating `greenmail.console.enabled=true`), never in a profile
-that could be active in a deployed environment.
+**Never enable this starter in production.** It is a dev/test tool: the console has no login and
+shows every captured message.
 
-**Security interaction to be aware of:** when enabled, this starter registers its own
-`SecurityFilterChain`, scoped to the console path (`greenmail.console.path` + `/**`), at
-`@Order(Ordered.HIGHEST_PRECEDENCE)`, with `permitAll()` and CSRF disabled — so the console itself
-is intentionally open, with no authentication required.
+### Keep it out of production builds
 
-Spring Boot's default security auto-configuration backs off automatically as soon as **any**
-`SecurityFilterChain` bean exists in the context. This means that if your application relies
-entirely on Boot's default security (i.e. it does not define a `SecurityFilterChain` of its own),
-enabling this console becomes the *only* security chain in the app. Because the console's chain is
-scoped solely to the console path, every other path in the application is left with no security
-filter applied at all — effectively unauthenticated.
+The safest setup is to never put the starter on a production classpath at all.
 
-**If you rely on Spring Boot's default security, you must define your own `SecurityFilterChain`
-covering the rest of your application before enabling this console.** Applications that already
-define their own security configuration (as most real applications do) are unaffected: their
-chain continues to protect all non-console paths as configured.
+**Maven** — declare it in a `dev` profile:
+
+```xml
+<profiles>
+    <profile>
+        <id>dev</id>
+        <dependencies>
+            <dependency>
+                <groupId>io.github.pmoustopoulos</groupId>
+                <artifactId>greenmail-console-spring-boot-starter</artifactId>
+                <version>0.2.0</version>
+            </dependency>
+        </dependencies>
+    </profile>
+</profiles>
+```
+
+Run locally with `mvn spring-boot:run -Pdev`; your normal (production) build does not include it.
+If you only need it in tests, use `<scope>test</scope>` instead.
+
+**Gradle** — use `developmentOnly` (only on the classpath for `bootRun`, never packaged in the
+fat jar) and/or `testImplementation`:
+
+```groovy
+dependencies {
+    developmentOnly 'io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.2.0'
+    testImplementation 'io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.2.0'
+}
+```
+
+### Built-in guards
+
+Even if the jar does end up on a production classpath:
+
+- It does nothing unless `greenmail.console.enabled=true` (default `false`).
+- If it *is* enabled while a profile listed in `greenmail.console.forbidden-profiles` (default
+  `prod,production`) is active, **the application fails to start** with a clear message.
+- The console only answers loopback clients unless `allow-remote=true`.
+- A `WARN` banner is logged at startup whenever the console is on.
+
+### Security interaction
+
+The starter does **not** register any `SecurityFilterChain` and does not relax your security in
+any way (see [How it stays out of your app's way](#how-it-stays-out-of-your-apps-way)). Your
+app's security keeps protecting every one of its own endpoints exactly as configured; only the
+console path is answered by the starter, before security runs.
 
 ## License
 

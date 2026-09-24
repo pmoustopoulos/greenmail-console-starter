@@ -13,7 +13,7 @@
 
     <groupId>io.github.pmoustopoulos</groupId>
     <artifactId>greenmail-console-spring-boot-starter</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
     <name>greenmail-console-spring-boot-starter</name>
     <description>In-memory GreenMail SMTP server with a web console, as a Spring Boot starter</description>
     <url>https://github.com/pmoustopoulos/greenmail-console-starter</url>
@@ -131,6 +131,14 @@
                 <configuration>
                     <!-- Targets Java 21 bytecode regardless of the JDK used to build -->
                     <release>${java.version}</release>
+                    <!-- JDK 23+ no longer runs annotation processors implicitly: declare the configuration
+                         processor so spring-configuration-metadata.json (IDE property completion) is generated -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-configuration-processor</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
 
