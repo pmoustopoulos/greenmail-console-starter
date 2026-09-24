@@ -69,6 +69,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- JSON for the console API. The console uses its own private JsonMapper (never the host's
+             bean), so a customised host mapper cannot change the wire format. Version managed by Boot. -->
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
         <!-- The in-memory mail server (compile scope: it is the core value of this starter) -->
         <dependency>
             <groupId>com.icegreen</groupId>
