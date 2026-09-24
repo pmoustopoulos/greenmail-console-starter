@@ -19,6 +19,8 @@ import org.springframework.core.env.Environment;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 
 @AutoConfiguration
 @EnableConfigurationProperties(GreenMailConsoleProperties.class)
@@ -27,6 +29,29 @@ import java.nio.file.Paths;
 public class GreenMailConsoleAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(GreenMailConsoleAutoConfiguration.class);
+
+    /**
+     * Production guard. Runs when this configuration is instantiated, i.e. before any console bean
+     * (SMTP server, filter, standalone server) is created, and fails startup if the console is
+     * enabled while a forbidden profile ({@code greenmail.console.forbidden-profiles}, default
+     * {@code prod,production}) is active.
+     */
+    public GreenMailConsoleAutoConfiguration(GreenMailConsoleProperties properties, Environment environment) {
+        checkNotInForbiddenProfile(properties, environment);
+    }
+
+    static void checkNotInForbiddenProfile(GreenMailConsoleProperties properties, Environment environment) {
+        List<String> active = Arrays.stream(environment.getActiveProfiles())
+                .filter(profile -> properties.getForbiddenProfiles().stream()
+                        .anyMatch(forbidden -> forbidden.trim().equalsIgnoreCase(profile)))
+                .toList();
+        if (!active.isEmpty()) {
+            throw new IllegalStateException("GreenMail console is enabled (greenmail.console.enabled=true) "
+                    + "while forbidden profile(s) " + active + " are active. The console is a DEV/TEST-ONLY "
+                    + "tool and must never run in production: set greenmail.console.enabled=false for this "
+                    + "profile, or adjust greenmail.console.forbidden-profiles.");
+        }
+    }
 
     /**
      * Starts the embedded GreenMail SMTP server, preferring the configured port

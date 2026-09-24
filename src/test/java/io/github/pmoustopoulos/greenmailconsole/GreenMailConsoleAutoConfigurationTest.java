@@ -111,4 +111,36 @@ class GreenMailConsoleAutoConfigurationTest {
         runner.withPropertyValues("greenmail.console.enabled=true", "greenmail.console.smtp-port=0")
                 .run(context -> assertThat(context).doesNotHaveBean(MailConsoleHttpServer.class));
     }
+
+    @Test
+    void failsStartupWhenEnabledUnderAForbiddenProfile() {
+        runner.withPropertyValues(
+                        "greenmail.console.enabled=true",
+                        "greenmail.console.smtp-port=0",
+                        "spring.profiles.active=dev,prod")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .rootCause()
+                            .isInstanceOf(IllegalStateException.class)
+                            .hasMessageContaining("forbidden profile(s) [prod]")
+                            .hasMessageContaining("DEV/TEST-ONLY");
+                });
+    }
+
+    @Test
+    void forbiddenProfilesAreConfigurable() {
+        runner.withPropertyValues(
+                        "greenmail.console.enabled=true",
+                        "greenmail.console.smtp-port=0",
+                        "greenmail.console.forbidden-profiles=staging",
+                        "spring.profiles.active=prod")
+                .run(context -> assertThat(context).hasNotFailed().hasSingleBean(GreenMail.class));
+    }
+
+    @Test
+    void forbiddenProfileIsIgnoredWhenDisabled() {
+        runner.withPropertyValues("spring.profiles.active=prod")
+                .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(GreenMail.class));
+    }
 }

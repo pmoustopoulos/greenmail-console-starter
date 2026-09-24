@@ -3,6 +3,8 @@ package io.github.pmoustopoulos.greenmailconsole;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 @ConfigurationProperties(prefix = "greenmail.console")
 public class GreenMailConsoleProperties {
@@ -74,6 +76,12 @@ public class GreenMailConsoleProperties {
 
     /** Address the standalone console server binds to when {@code mode=standalone}. Ignored in {@code filter} mode. */
     private String bindAddress = "127.0.0.1";
+
+    /**
+     * Profiles in which the console must never run. If the console is enabled while any of these
+     * profiles is active, application startup fails.
+     */
+    private List<String> forbiddenProfiles = new ArrayList<>(List.of("prod", "production"));
 
     public boolean isEnabled() {
         return enabled;
@@ -153,5 +161,13 @@ public class GreenMailConsoleProperties {
 
     public void setBindAddress(String bindAddress) {
         this.bindAddress = bindAddress;
+    }
+
+    public List<String> getForbiddenProfiles() {
+        return forbiddenProfiles;
+    }
+
+    public void setForbiddenProfiles(List<String> forbiddenProfiles) {
+        this.forbiddenProfiles = forbiddenProfiles;
     }
 }
