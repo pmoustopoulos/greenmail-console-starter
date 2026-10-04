@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+Console UI redesign and preview fixes. No configuration, API or behavior changes for the host app.
+
+### Changed
+
+- Redesigned console: a dense two-pane list and reader, light and dark themes (follows the OS,
+  with a remembered toggle), and a stacked list → reader layout on small screens.
+- Keyboard navigation: `↑`/`↓` or `j`/`k` to move, `Enter` to open, `Delete` to delete (with a
+  confirm), `Esc` to go back on mobile.
+- Links and buttons inside a previewed HTML email now open in a new tab instead of doing nothing.
+  The preview stays sandboxed (no scripts, no same-origin access).
+- Delete and Clear all ask for confirmation.
+- The console page makes no external requests (no CDNs or web fonts), so it works offline.
+
+### Fixed
+
+- Message previews in the list decode numeric (`&#233;`, `&#x20AC;`) and named (`&amp;`,
+  `&nbsp;`, …) HTML entities instead of showing them raw.
+
 ## 0.2.0
 
 Plug-and-play release: the console now works in any servlet-based Spring Boot app, regardless of

@@ -66,7 +66,7 @@ dependency to *any* project on your machine:
 ```bash
 git clone https://github.com/pmoustopoulos/greenmail-console-starter.git
 cd greenmail-console-starter
-mvn clean install              # installs io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.2.0 into ~/.m2
+mvn clean install              # installs io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.3.0 into ~/.m2
 ```
 
 Re-run `mvn clean install` whenever you change the starter's code so consumers pick up the new jar.
@@ -83,7 +83,7 @@ starter never ships:
 <dependency>
     <groupId>io.github.pmoustopoulos</groupId>
     <artifactId>greenmail-console-spring-boot-starter</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
 </dependency>
 
 <dependency>
@@ -274,7 +274,7 @@ The safest setup is to never put the starter on a production classpath at all.
             <dependency>
                 <groupId>io.github.pmoustopoulos</groupId>
                 <artifactId>greenmail-console-spring-boot-starter</artifactId>
-                <version>0.2.0</version>
+                <version>0.3.0</version>
             </dependency>
         </dependencies>
     </profile>
@@ -289,8 +289,8 @@ fat jar) and/or `testImplementation`:
 
 ```groovy
 dependencies {
-    developmentOnly 'io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.2.0'
-    testImplementation 'io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.2.0'
+    developmentOnly 'io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.3.0'
+    testImplementation 'io.github.pmoustopoulos:greenmail-console-spring-boot-starter:0.3.0'
 }
 ```
 
