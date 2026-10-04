@@ -17,19 +17,21 @@ process, nothing sensitive leaving the machine. That's what this starter is.
 
 ## Features
 
-- 📥 **Inbox UI** with read/unread state and an unread count
+- 📥 **Inbox UI** — a dense two-pane list and reader with read/unread state and an unread count, live auto-refresh, and a stacked list → reader layout on small screens
+- 🌗 **Light and dark themes** — follows your OS setting by default, with a toggle that is remembered
+- ⌨️ **Keyboard navigation** — `↑`/`↓` or `j`/`k` to move, `Enter` to open, `Delete` to delete (with a confirm), `Esc` to go back on mobile
 - 🕒 **Arrival time** per message (relative in the list, absolute in the detail)
-- 🧾 **Message detail** with **HTML**, **Plain text**, **Headers**, and raw **Source** tabs
+- 🧾 **Message detail** with **HTML**, **Plain text**, **Headers**, and raw **Source** tabs; the HTML is rendered in a sandbox (no scripts), and its links open in a new tab
 - 📎 **Attachments** (downloadable) and **inline images** (`cid:`) rendered in place
 - 👥 Shows **From / To / Cc** and the total **email size**
-- 🧹 **Delete** a single message or **clear all**
+- 🧹 **Delete** a single message or **clear all** (with a confirm)
 - 🔁 **De-duplicates** per-recipient copies — one row per email
 - 🛡️ **Zero-config: works regardless of your security, interceptors, advice, or filters** — the console is served ahead of your app's Spring Security, `HandlerInterceptor`s, `@ControllerAdvice`, JSON mapper and servlet filters, and never touches or weakens them
 - 🔌 **Auto-configured** Spring Boot starter — off by default; enable it with one property and point `spring.mail.*` at it (standard Boot mail config, so swapping to a real server is trivial)
 - 💾 **Two storage modes** — in-memory (default, cleared on restart) or `file` (mail mirrored to `.eml` files that survive restarts)
 - ♻️ **Starts and stops with your app** — the SMTP server (and the optional standalone console server) are tied to the Spring context lifecycle; nothing to start or stop by hand
 - 🔒 **Safe by default** — localhost-only access, and startup fails if it is enabled under a `prod`/`production` profile
-- 🚫 **No Docker**, no external process — everything runs embedded in the JVM
+- 🚫 **No Docker**, no external process — everything runs embedded in the JVM; the console is a single self-contained page that makes no external requests (no CDNs or web fonts), so it works offline
 
 ## Screenshots
 

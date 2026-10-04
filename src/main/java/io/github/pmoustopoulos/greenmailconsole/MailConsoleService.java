@@ -343,14 +343,46 @@ public class MailConsoleService {
         s = s.replaceAll("(?s)<!--.*?-->", " ");
         // Strip the remaining tags
         s = s.replaceAll("<[^>]+>", " ");
-        // Decode the most common HTML entities
-        s = s.replace("&nbsp;", " ")
-                .replace("&amp;", "&")
+        return decodeEntities(s);
+    }
+
+    /**
+     * Decodes HTML entities for the plain-text preview: numeric ones ({@code &#9679;},
+     * {@code &#x25CF;}) generically, plus the named ones that commonly appear in mail. {@code &amp;}
+     * is decoded last so an escaped entity like {@code &amp;lt;} is not decoded twice.
+     */
+    static String decodeEntities(String s) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("&#(x[0-9a-fA-F]+|[0-9]+);").matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String num = m.group(1);
+            String replacement;
+            try {
+                int cp = num.startsWith("x") || num.startsWith("X")
+                        ? Integer.parseInt(num.substring(1), 16) : Integer.parseInt(num);
+                replacement = Character.isValidCodePoint(cp) ? new String(Character.toChars(cp)) : m.group();
+            } catch (NumberFormatException ex) {
+                replacement = m.group();
+            }
+            m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(replacement));
+        }
+        m.appendTail(out);
+        return out.toString()
+                .replace("&nbsp;", " ")
                 .replace("&lt;", "<")
                 .replace("&gt;", ">")
                 .replace("&quot;", "\"")
-                .replace("&#39;", "'");
-        return s;
+                .replace("&apos;", "'")
+                .replace("&mdash;", "\u2014")
+                .replace("&ndash;", "\u2013")
+                .replace("&hellip;", "\u2026")
+                .replace("&rsquo;", "\u2019")
+                .replace("&lsquo;", "\u2018")
+                .replace("&rdquo;", "\u201D")
+                .replace("&ldquo;", "\u201C")
+                .replace("&bull;", "\u2022")
+                .replace("&euro;", "\u20AC")
+                .replace("&amp;", "&");
     }
 
     private Map<String, String> headers(MimeMessage message) {

@@ -260,4 +260,14 @@ class MailConsoleServiceTest {
         service.clearMessages();
         assertThat(service.listMessages()).isEmpty();
     }
+
+    @Test
+    void decodesNumericAndCommonNamedEntitiesInThePreview() {
+        assertThat(MailConsoleService.decodeEntities("PE&amp;D &#9679; Certifications"))
+                .isEqualTo("PE&D ● Certifications");
+        assertThat(MailConsoleService.decodeEntities("&#x25CF; caf&eacute;? &mdash; ok&hellip;"))
+                .isEqualTo("● caf&eacute;? — ok…");
+        // An escaped entity is decoded once, not twice.
+        assertThat(MailConsoleService.decodeEntities("&amp;lt;b&amp;gt;")).isEqualTo("&lt;b&gt;");
+    }
 }
